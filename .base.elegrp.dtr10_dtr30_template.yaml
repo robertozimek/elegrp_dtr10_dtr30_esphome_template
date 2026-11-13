@@ -207,18 +207,18 @@ tuya:
             id(g_dp_brightness) = x;
             if (prev < 0 || now - id(g_last_dp_write_ms) < 1500) return;
             if (now - id(g_last_paddle_switch_ms) < id(g_brightness_settle_ms)) return;
+            // Dimming is disabled while off. The TuyaMCU still changes its stored
+            // brightness, so put the previous one back (the echo is filtered).
+            if (id(g_dp_switch) == 0) {
+              id(g_dp_brightness) = prev;
+              id(id_tuya_device).set_integer_datapoint_value(2, prev);
+              return;
+            }
             // Dimming at the max/min limit reports the same value again
             if (x > prev || (x == prev && x >= 500)) {
               id(id_event_paddle).trigger("dim_up");
             } else {
               id(id_event_paddle).trigger("dim_down");
-            }
-            // Dimming while off only changes the stored brightness, so turn the light on at it
-            if (id(g_dp_switch) == 0) {
-              auto call = id(dimmer).turn_on();
-              call.set_brightness(x / 1000.0f);
-              call.set_transition_length(0);
-              call.perform();
             }
 
 switch:
