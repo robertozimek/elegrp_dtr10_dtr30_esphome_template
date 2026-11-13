@@ -83,6 +83,10 @@ globals:
   - id: g_last_paddle_switch_ms
     type: uint32_t
     initial_value: '0'
+  # How long after the last on/off/long press to ignore brightness reports
+  - id: g_brightness_settle_ms
+    type: uint32_t
+    initial_value: '0'
   # -1 until the TuyaMCU reports the first value after boot
   - id: g_dp_switch
     type: int
@@ -183,6 +187,9 @@ tuya:
             id(g_dp_switch) = x ? 1 : 0;
             if (prev < 0 || now - id(g_last_dp_write_ms) < 1500) return;
             id(g_last_paddle_switch_ms) = now;
+            // Long press is followed by a brightness report; off isn't, so keep that
+            // window short to not swallow dimming right after turning off
+            id(g_brightness_settle_ms) = x ? 3000 : 1000;
             if (!x) {
               id(id_event_paddle).trigger("turned_off");
             } else if (prev == 1) {
@@ -199,8 +206,7 @@ tuya:
             const int prev = id(g_dp_brightness);
             id(g_dp_brightness) = x;
             if (prev < 0 || now - id(g_last_dp_write_ms) < 1500) return;
-            // On/off and long press are followed by a brightness report
-            if (now - id(g_last_paddle_switch_ms) < 3000) return;
+            if (now - id(g_last_paddle_switch_ms) < id(g_brightness_settle_ms)) return;
             // Dimming at the max/min limit reports the same value again
             if (x > prev || (x == prev && x >= 500)) {
               id(id_event_paddle).trigger("dim_up");
@@ -209,7 +215,6 @@ tuya:
             }
             // Dimming while off only changes the stored brightness, so turn the light on at it
             if (id(g_dp_switch) == 0) {
-              id(g_last_paddle_switch_ms) = now;
               auto call = id(dimmer).turn_on();
               call.set_brightness(x / 1000.0f);
               call.set_transition_length(0);
