@@ -60,6 +60,52 @@ uart:
   rx_pin: RX1
   tx_pin: TX1
   baud_rate: 9600
+  # Remember when we last wrote DP 1/2 so the TuyaMCU's echo isn't reported as a paddle press
+  debug:
+    direction: TX
+    dummy_receiver: false
+    after:
+      timeout: 10ms
+    sequence:
+      - lambda: |-
+          // Tuya frame: 55 AA <ver> <cmd> <len_hi> <len_lo> <dpid> ...; cmd 0x06 = set datapoint
+          for (size_t i = 0; i + 6 < bytes.size(); i++) {
+            if (bytes[i] == 0x55 && bytes[i + 1] == 0xAA && bytes[i + 3] == 0x06 &&
+                (bytes[i + 6] == 1 || bytes[i + 6] == 2)) {
+              id(g_last_dp_write_ms) = millis();
+            }
+          }
+
+globals:
+  - id: g_last_dp_write_ms
+    type: uint32_t
+    initial_value: '0'
+  - id: g_last_paddle_switch_ms
+    type: uint32_t
+    initial_value: '0'
+  # -1 until the TuyaMCU reports the first value after boot
+  - id: g_dp_switch
+    type: int
+    initial_value: '-1'
+  - id: g_dp_brightness
+    type: int
+    initial_value: '-1'
+
+# Physical paddle presses, for Home Assistant automations.
+# The TuyaMCU does not report double/triple taps, so only these can be detected.
+event:
+  - platform: template
+    name: "Paddle"
+    id: id_event_paddle
+    device_class: button
+    event_types:
+      - turned_on
+      - turned_off
+      - long_press
+      - dim_up
+      - dim_down
+    web_server:
+      sorting_weight: 50
 
 sensor:
   - platform: wifi_signal
@@ -127,6 +173,40 @@ button:
 tuya:
   # DPIDs processed from schema model: 000004ngxw
   id: id_tuya_device
+  on_datapoint_update:
+    - sensor_datapoint: 1
+      datapoint_type: bool
+      then:
+        - lambda: |-
+            const uint32_t now = millis();
+            const int prev = id(g_dp_switch);
+            id(g_dp_switch) = x ? 1 : 0;
+            if (prev < 0 || now - id(g_last_dp_write_ms) < 1500) return;
+            id(g_last_paddle_switch_ms) = now;
+            if (!x) {
+              id(id_event_paddle).trigger("turned_off");
+            } else if (prev == 1) {
+              // Holding the paddle while already on reports ON again
+              id(id_event_paddle).trigger("long_press");
+            } else {
+              id(id_event_paddle).trigger("turned_on");
+            }
+    - sensor_datapoint: 2
+      datapoint_type: int
+      then:
+        - lambda: |-
+            const uint32_t now = millis();
+            const int prev = id(g_dp_brightness);
+            id(g_dp_brightness) = x;
+            if (prev < 0 || now - id(g_last_dp_write_ms) < 1500) return;
+            // On/off and long press are followed by a brightness report
+            if (now - id(g_last_paddle_switch_ms) < 3000) return;
+            // Dimming at the max/min limit reports the same value again
+            if (x > prev || (x == prev && x >= 500)) {
+              id(id_event_paddle).trigger("dim_up");
+            } else {
+              id(id_event_paddle).trigger("dim_down");
+            }
 
 switch:
   # Countdown is handled by the TuyaMCU, not the Wi-Fi module
