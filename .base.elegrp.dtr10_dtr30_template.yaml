@@ -129,9 +129,14 @@ tuya:
   id: id_tuya_device
 
 switch:
-  #- platform: tuya
-  #  switch_datapoint: 110
-  #  name: Countdown Action
+  # Countdown is handled by the TuyaMCU, not the Wi-Fi module
+  - platform: tuya
+    switch_datapoint: 110
+    name: "Countdown Action"
+    id: id_switch_countdown_action
+    entity_category: config
+    web_server:
+      sorting_weight: 41
   - platform: tuya
     switch_datapoint: 114
     name: "Set Brightness Min"
@@ -194,20 +199,28 @@ number:
     entity_category: config
     web_server:
       sorting_weight: 12
-  #- platform: tuya
-  #  number_datapoint: 6
-  #  name: "Countdown 1"
-  #  unit_of_measurement: S
-  #  min_value: 0
-  #  max_value: 86399
-  #  step: 1
-  #- platform: tuya
-  #  number_datapoint: 111
-  #  name: "Countdown Total"
-  #  unit_of_measurement: S
-  #  min_value: 0
-  #  max_value: 86399
-  #  step: 1
+  # Seconds remaining, counted down by the TuyaMCU. Set to 0 to cancel.
+  - platform: tuya
+    number_datapoint: 6
+    name: "Countdown"
+    id: id_number_countdown
+    unit_of_measurement: s
+    min_value: 0
+    max_value: 86399
+    step: 1
+    web_server:
+      sorting_weight: 40
+  - platform: tuya
+    number_datapoint: 111
+    name: "Countdown Total"
+    id: id_number_countdown_total
+    unit_of_measurement: s
+    min_value: 0
+    max_value: 86399
+    step: 1
+    entity_category: diagnostic
+    web_server:
+      sorting_weight: 42
 
 select:
   - platform: tuya
