@@ -207,6 +207,14 @@ tuya:
             } else {
               id(id_event_paddle).trigger("dim_down");
             }
+            // Dimming while off only changes the stored brightness, so turn the light on at it
+            if (id(g_dp_switch) == 0) {
+              id(g_last_paddle_switch_ms) = now;
+              auto call = id(dimmer).turn_on();
+              call.set_brightness(x / 1000.0f);
+              call.set_transition_length(0);
+              call.perform();
+            }
 
 switch:
   # Countdown is handled by the TuyaMCU, not the Wi-Fi module
