@@ -189,7 +189,7 @@ tuya:
             id(g_last_paddle_switch_ms) = now;
             // Long press is followed by a brightness report; off isn't, so keep that
             // window short to not swallow dimming right after turning off
-            id(g_brightness_settle_ms) = x ? 3000 : 1000;
+            id(g_brightness_settle_ms) = x ? 3000 : 800;
             if (!x) {
               id(id_event_paddle).trigger("turned_off");
             } else if (prev == 1) {
